@@ -1,0 +1,205 @@
+<!doctype html>
+<html>
+<head>
+<meta charset='UTF-8'><meta name='viewport' content='width=device-width initial-scale=1'>
+<title>readme</title></head>
+<body><p>Ejemplo de select joins entre diferentes tablas con JPA. </p>
+<p>Se verán diferentes tipos de unión explicando como realizar uniones entre tablas de modo perezoso (<strong>lazy</strong>) o agresivo  (<strong>eager</strong>). Se unirán tablas por un solo campo, por varios e incluso por uno pero añadiendo una condición estática.</p>
+<p>EL proyecto de ejemplo esta en: <a href='https://github.com/chuchip/jpajoins' target='_blank' class='url'>https://github.com/chuchip/jpajoins</a> y esta desarrollado en <strong>Spring Boot</strong> con <strong>Hibernate</strong>, usando como base de datos H2.</p>
+<p>Las tablas están definidas en el fichero <code>schema.sql</code> y se cargan datos para pruebas en el fichero <code>data.sql</code></p>
+<p>Este es el esquema de la base de datos:</p>
+<p><img src='.\jpajoins_schema.png' alt='jpajoins_schema' referrerPolicy='no-referrer' /></p>
+<p>Nota importante:**</p>
+<blockquote><p>Si el nombre de la entidad o de la columna en las clases <strong>Java</strong>  tiene una mayúscula en medio, JPA interpretara que su hay un guion en medio y ese será la tabla o columna que buscara en la base de datos.
+De esta manera si a la clase <code>Invoiceheader.java</code> le renombráramos a <code>InvoiceHeader.java</code>  <em>Hibernate</em>, buscaría la tabla <strong>invoice_header</strong> en la base de datos y fallaría pues no la encontraría.</p>
+<p>Como ejemplo se puede ver el campo <strong>line_details</strong> de la tabla <strong>invoiceDetails</strong>, que en la clase <strong>Invoicedetails.java</strong> (obsérvese que la D es minúscula) es llamada con la variable <strong>lineDetails</strong>.</p>
+</blockquote>
+<p>&nbsp;</p>
+<h4>Realizando una &#39;<em>select join</em>&#39; entre la tabla cabeceras de factura (invoiceHeader) y clientes (customer)</h4>
+<ul>
+<li>Enlace <em>perezoso</em> </li>
+
+</ul>
+<pre><code class='language-java' lang='java'>@ManyToOne(fetch=FetchType.LAZY)
+@JoinColumn(name=&quot;articleId&quot;,referencedColumnName=&quot;id&quot;)	
+Customer customer;
+</code></pre>
+<p>Al realizar la búsqueda la select resultante sera:</p>
+<pre><code>select
+        invoicehea0_.id as id1_3_0_,
+        invoicehea0_.customerid as customer2_3_0_,
+        invoicehea0_.fiscalyear as fiscalye3_3_0_,
+        invoicehea0_.numberinvoice as numberin4_3_0_ 
+    from
+        invoiceheader invoicehea0_ 
+    where
+        invoicehea0_.id=?
+</code></pre>
+<p> y cuando se realice un consulta  sobre la columna <strong>customer</strong> ejecutara la sentencia <em>select</em> necesaria para buscar los datos del cliente:</p>
+<pre><code> select
+        customer0_.id as id1_1_0_,
+        customer0_.active as active2_1_0_,
+        customer0_.address as address3_1_0_,
+        customer0_.name as name4_1_0_ 
+    from
+        customer customer0_ 
+    where
+        customer0_.id=?
+</code></pre>
+<ul>
+<li>Enlace <em>duro</em></li>
+
+</ul>
+<pre><code>@ManyToOne(fetch=FetchType.EDGER)
+@JoinColumn(name=&quot;articleId&quot;,referencedColumnName=&quot;id&quot;)	
+Customer customer;
+</code></pre>
+<p>Al estar el tipo de busqueda establecido a <code>FetchType.EDGER</code>  realizara una única select con su correspondiente <em>left outer join</em></p>
+<pre><code> select
+        invoicehea0_.id as id1_3_0_,
+        invoicehea0_.customerid as customer2_3_0_,
+        invoicehea0_.fiscalyear as fiscalye3_3_0_,
+        invoicehea0_.numberinvoice as numberin4_3_0_,
+        customer1_.id as id1_1_1_,
+        customer1_.active as active2_1_1_,
+        customer1_.address as address3_1_1_,
+        customer1_.name as name4_1_1_ 
+    from
+        invoiceheader invoicehea0_ 
+    left outer join
+        customer customer1_ 
+            on invoicehea0_.customerid=customer1_.id 
+    where
+        invoicehea0_.id=?
+</code></pre>
+<ul>
+<li>Rizando el rizo.Añadiendo valores fijos</li>
+
+</ul>
+<p>Pero, ¿y si queremos  que nos enlace las dos tablas por una columna y además con un valor fijo en otra?</p>
+<p>En la tabla <code>customer</code> se definió la columna <em>active</em> y queremos que solo nos muestre los datos de la factura cuando el valor de esa columna sea <code>1</code> Para ello necesitaremos la ayuda de la etiqueta <strong>@JoinColumnsOrFormulas</strong> que nos permite realizar uniones tanto entre dos columnas como estableciendo valores a la columna de la tabla destino (en este caso <em>customer</em>)</p>
+<pre><code>@ManyToOne(fetch=FetchType.EDGER)
+	@JoinColumnsOrFormulas({
+		 @JoinColumnOrFormula(column=@JoinColumn(name=&quot;customerid&quot;, referencedColumnName =&quot;id&quot;) ),
+		 @JoinColumnOrFormula(formula = @JoinFormula(value=&quot;1&quot;,referencedColumnName = &quot;active&quot;))
+	})	
+	Customer customer;
+</code></pre>
+<p>La <em>select</em> ejecutada será:</p>
+<pre><code>select
+        invoicehea0_.id as id1_3_0_,
+        invoicehea0_.customerid as customer2_3_0_,
+        invoicehea0_.fiscalyear as fiscalye3_3_0_,
+        invoicehea0_.numberinvoice as numberin4_3_0_,
+        1 as formula1_0_,
+        customer1_.id as id1_1_1_,
+        customer1_.active as active2_1_1_,
+        customer1_.address as address3_1_1_,
+        customer1_.name as name4_1_1_ 
+    from
+        invoiceheader invoicehea0_ 
+    left outer join
+        customer customer1_ 
+            on invoicehea0_.customerid=customer1_.id 
+            and 1=customer1_.active 
+    where
+        invoicehea0_.id=?
+</code></pre>
+<p>En el caso de que no encuentre ningún registro, la variable <strong>customer</strong> tendrá un valor nulo.</p>
+<p>Si el tipo de enlace fuera <em>lazy</em> como en el caso anterior se haría primero una <em>query</em> sobre la tabla <strong>invoiceheader</strong> y cuando se pidiera el valor de la variable <strong>customer</strong> se realizaría sobre su correspondiente tabla-</p>
+<h3>Uniendo tabla cabeceras facturas y líneas de facturas.</h3>
+<p>Para unir las dos tablas pondremos el siguiente código en la clase <code>Invoicedetails.java</code></p>
+<pre><code class='language-java' lang='java'>@OneToMany
+@JoinColumns(
+    {
+        @JoinColumn(name=&quot;fiscalyear&quot;,referencedColumnName=&quot;fiscalyear&quot;),
+       	@JoinColumn(name=&quot;numberinvoice&quot;,referencedColumnName=&quot;numberinvoice&quot;)
+    }			
+)
+List&lt;Invoicedetails&gt; details;	
+</code></pre>
+<p>&nbsp;</p>
+<p>Como se ve, al ser dos campos los que unen ambas tablas haremos uso de la etiqueta <strong>@JoinColumns</strong> con sus correspondientes <strong>@JoinColumn</strong> dentro.</p>
+<p>Como no hemos especificado nada, la unión se hará del tipo <strong>EAGER</strong> por lo cual la consulta realizada a la base de datos será la siguiente:</p>
+<pre><code>  select
+        invoicehea0_.id as id1_3_0_,
+        invoicehea0_.customerid as customer2_3_0_,
+        invoicehea0_.fiscalyear as fiscalye3_3_0_,
+        invoicehea0_.numberinvoice as numberin4_3_0_,
+        1 as formula1_0_,
+        details1_.fiscalyear as fiscalye2_2_1_,
+        details1_.numberinvoice as numberin5_2_1_,
+        details1_.id as id1_2_1_,
+        details1_.id as id1_2_2_,
+        details1_.articleid as articlei6_2_2_,
+        details1_.fiscalyear as fiscalye2_2_2_,
+        details1_.linea_details as linea_de3_2_2_,
+        details1_.numberarticles as numberar4_2_2_,
+        details1_.numberinvoice as numberin5_2_2_,
+        article2_.id as id1_0_3_,
+        article2_.description as descript2_0_3_,
+        article2_.price as price3_0_3_ 
+    from
+        invoiceheader invoicehea0_ 
+    left outer join
+        invoicedetails details1_ 
+            on invoicehea0_.fiscalyear=details1_.fiscalyear 
+            and invoicehea0_.numberinvoice=details1_.numberinvoice 
+    left outer join
+        article article2_ 
+            on details1_.articleid=article2_.id 
+    where
+        invoicehea0_.id=?
+</code></pre>
+<p>El ultimo <em>&quot;left outer join&quot;</em> haciendo referencia a la tabla <strong>article</strong>  lo pone <em>Hibernate</em> porque en la clase <strong>Invoicedetails.java</strong> tenemos el código:</p>
+<pre><code>@ManyToOne(fetch=FetchType.EAGER)
+@JoinColumns({
+	@JoinColumn(name=&quot;articleid&quot;,referencedColumnName=&quot;id&quot;)		
+})
+Article articles;	
+</code></pre>
+<p>para que nos muestre los datos del articulo por cada línea del articulo, y como esta marcada la unión a tipo <strong>EAGER</strong>, <em>Hibernate</em> es lo suficimiente listo para hacer una sola consulta a la base de datos.</p>
+<p>Si realizamos un llamada a <a href='http://localhost:8080/1' target='_blank' class='url'>http://localhost:8080/1</a> observaremos la siguiente salida que devuelve la clase <strong>Invoiceheader.java</strong> veremos lo siguiente:</p>
+<pre><code>{
+    &quot;id&quot;: 1,
+    &quot;fiscalYear&quot;: 2019,
+    &quot;numberInvoice&quot;: 1,
+    &quot;customerId&quot;: 1,
+    &quot;customer&quot;: {
+        &quot;id&quot;: 1,
+        &quot;name&quot;: &quot;customer 1 name&quot;,
+        &quot;address&quot;: &quot;customer 1 address&quot;,
+        &quot;active&quot;: 1
+    },
+    &quot;details&quot;: [
+        {
+            &quot;id&quot;: 1,
+            &quot;fiscalyear&quot;: 2019,
+            &quot;numberinvoice&quot;: 1,
+            &quot;lineaDetails&quot;: 1,
+            &quot;numberarticles&quot;: 5,
+            &quot;articles&quot;: {
+                &quot;id&quot;: 1,
+                &quot;description&quot;: &quot;article 1 description&quot;,
+                &quot;price&quot;: 10.1
+            }
+        },
+        {
+            &quot;id&quot;: 2,
+            &quot;fiscalyear&quot;: 2019,
+            &quot;numberinvoice&quot;: 1,
+            &quot;lineaDetails&quot;: 2,
+            &quot;numberarticles&quot;: 3,
+            &quot;articles&quot;: {
+                &quot;id&quot;: 2,
+                &quot;description&quot;: &quot;article 2 description&quot;,
+                &quot;price&quot;: 12.3
+            }
+        }
+    ]
+}
+</code></pre>
+<p>&nbsp;</p>
+<p> Y así queda demostrado la importancia de establecer el tipo de unión pues si imaginamos una factura que tenga miles de líneas (improbable lo sé), si establecemos el método de unión a <strong>lazy</strong>  en vez de hacer una sola consulta a la base de datos, haría 1000 lo cual, por supuesto ralentizaría muchísimo nuestra consulta, aparte de sobrecargar innecesariamente el servidor de la base de datos</p>
+</body>
+</html>
