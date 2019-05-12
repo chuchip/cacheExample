@@ -1,16 +1,14 @@
 ### Usando cache en Spring  Boot
 
-Vamos a imaginar una aplicación web, donde en cada petición recibida, debe  leer ciertos datos de configuración desde una base de datos. Esos datos de configuración no cambiaran normalmente pero nuestra aplicación, en cada petición, debe conectar con la base de datos, ejecutar las sentencias adecuadas para leer los datos, traerlos por la red, etc. Imaginemos, además, que la base de datos a la que nos conectamos esta saturada o la conexión de red que nos une a la base de datos es inestable. ¿Qué pasaría?. Pues que tendríamos una aplicación lenta por el hecho de leer continuamente unos datos que sabemos que apenas cambian.
+Vamos a imaginar una aplicación web, donde por cada petición recibida, debe  leer ciertos datos de configuración desde una base de datos. Esos datos  no cambiaran normalmente pero nuestra aplicación, en cada petición, debe conectarse, ejecutar las sentencias adecuadas para leer los datos, traerlos por la red, etc. Imaginemos, además, que la base de datos a la que nos conectamos esta saturada o la conexión de red que nos une a la base de datos es inestable. ¿Qué pasaría?. Pues que tendríamos una aplicación lenta por el hecho de leer continuamente unos datos que sabemos que apenas cambian.
 
-Para solucionar ese problema podríamos utilizar una **Cache**, pero ¿ como implementarlo ?. En este articulo explicare como usar una cache básica que Spring provee.
+Para solucionar ese problema podríamos utilizar una **Cache**, pero ¿ como implementarlo ?. En este articulo explicare como usar una cache básica en **Spring Boot**.
 
 #### Un poco de teoría
 
-La cache se aplica sobre funciones, donde para un mismo valor de entrada esperamos un mismo valor de salida. Es por ello que siempre debemos tener al menos un  parámetro de entrada y devolver  algo.
+La cache se aplica sobre funciones, donde para un mismo valor de entrada esperamos un mismo valor de salida. Es por ello que siempre debemos tener al menos un  parámetro de entrada y una salida.
 
 Un ejemplo típico seria este:
-
-Esta es una función cacheada:
 
 ```java
  @Cacheable(cacheNames="headers")
@@ -29,11 +27,11 @@ int otroValor=funcionCacheada(2);
 int tercerValor=funcionCacheada(1);
 ```
 
-Al ejecutar el programa, en la primera línea, Spring,  ejecutara la función y se guardara el resultado que devuelve. En la segunda línea, como no sabe el valor que se debe devolver para la entrada con valor "2" hará lo mismo. Sin embargo en la tercera línea Spring detectara que esa función ya ha sido llamada con el valor "1" y por lo tanto no ejecutara la función, simplemente devolverá el valor que en la primera llamada se guardo. 
+Al ejecutar el programa, en la primera línea, **Spring**,  ejecutara la función y guardara el resultado que devuelve. En la segunda línea, como no sabe el valor que se debe devolver para la entrada con valor "2" hará lo mismo. Sin embargo en la tercera línea **Spring** detectara que una función marcada con **@Cacheable** con el nombre de cache **"headers"** ya ha sido llamada con el valor "1" y  no ejecutara la función, simplemente devolverá el valor que en la primera llamada guardo. 
 
-El nombre de la cache es importante pues, entre otras cosas, nos permitirá limpiar la cache, para obligar a a Spring a ejecutar de nuevo las funciones.
+El nombre de la cache es importante pues, entre otras cosas, pues nos permite tener diferentes caches independientes, las cuales podremos, entre otras cosas limpiar, para obligar a a **Spring Boot** a ejecutar de nuevo las funciones.
 
-La idea básicamente es que Spring en cada llamada a la función guarda en una tabla interna los  resultados para cada llamada, de tal manera que si ya tiene la salida para una entrada, no llama a la función. 
+Así, la idea básicamente es que en cada llamada a una función marcada como @**Cacheable** se guarda en una tabla interna los  resultados para cada llamada, de tal manera que si ya tiene la salida para una entrada, no llama a la función. 
 
 #### Practica
 
@@ -52,9 +50,7 @@ Lo primero que se necesita es incluir la siguiente dependencia en nuestro proyec
 
 Ahora ya podremos utilizar las etiquetas que nos permitirán usar **Cache** en nuestra aplicación.
 
-
-
-La primera etiqueta a poner es **@EnableCaching**. Con esta etiqueta le indicamos a Spring que prepare el soporte para usar cache. Si no se la ponemos simplemente no la usara, independientemente de si indicamos posteriormente que cachee ciertos datos.
+La primera etiqueta a poner es **@EnableCaching**. Con esta etiqueta le indicamos a Spring que prepare el soporte para usar cache. Si no se la ponemos simplemente no la usara, independientemente de si indicamos posteriormente que cachee los resultados de unas funciones.
 
 ````java
 @SpringBootApplication
@@ -68,12 +64,11 @@ public class CacheExampleApplication {
 
 En este ejemplo se leerán unos datos de una base de datos a través de unas peticiones REST.
 
-Los datos como tal se leen en la clase **CacheDataImpl.java**  que esta en el paquete **com.profesorp.cacheexample.impl** 
+Los datos como tal se leen en la clase `CacheDataImpl.java`  que esta en el paquete `com.profesorp.cacheexample.impl` 
 
 La función que lee los datos es la siguiente:
 
 ```java
-
  @Cacheable(cacheNames="headers", condition="#id > 1")
  public DtoResponse getDataCache(int id) {	
 		try {
@@ -93,16 +88,14 @@ Con ella, le estamos indicando a Spring dos cosas.
 1. Que deseamos que cachee el resultado de esta función. 
 2. Le ponemos como condición, que solo cachee los resultados si el valor de entrada es superior a 1.
 
-En la función **flushCache** le ponemos la etiqueta @**CacheEvict** la cual limpia la cache indicada. En este caso, además, le indicamos que borre todas las entradas que tengan cacheadas.
+Más adelante, en la función `flushCache`,  le ponemos la etiqueta @**CacheEvict** la cual limpia la cache indicada. En este caso, además, le indicamos que borre todas las entradas que tengan cacheadas.
 
 ```
 @CacheEvict(cacheNames="headers", allEntries=true)
 public void flushCache() {	}	
 ```
 
-
-
-En la función **update** actualizamos la base de datos y con la etiqueta **@CachePut** le indicamos a Spring que actualice los datos para el valor que hay en  **dtoRequest.id** 
+En la función `update` actualizamos la base de datos y con la etiqueta **@CachePut** le indicamos a Spring que actualice los datos para el valor que hay en  **dtoRequest.id** 
 
 ```
 @CachePut(cacheNames="headers", key="#dtoRequest.id")
@@ -113,3 +106,71 @@ public  DtoResponse update(DtoRequest dtoRequest)
 ```
 
 Por supuesto esta función tiene que devolver un objeto igual al de la marcada con la etiqueta **@Cacheable** y debemos indicarle el valor de entrada, para el que se desea actualizar los datos.
+
+#### Funcionando
+
+Para entender mejor la aplicación vamos a arrancarla y realizarle peticiones.
+
+La aplicación al arrancar en la tabla `invoiceHeader` las cabeceras de 4 facturas (podéis ver como lo  hace en el fichero `data.sql`).
+
+Vamos a ejecutar por la función `get` de la clase `PrincipalController`, para ello escribimos:
+
+````
+> curl -s http://localhost:8080/2
+````
+
+Nos devolverá lo siguiente:
+
+```
+{"interval":507,"httpStatus":"OK","invoiceHeader":{"id":2,"activo":"N","yearFiscal":2019,"numberInvoice":2,"customerId":2}}
+```
+
+El campo `interval` el tiempo en milisegundos que le ha costado realizar la consulta . Como se puede ver le ha costado mas de medio segundo, pues en la función  `getDataCache` de `CacheDataImpl.java`tenemos un sleep de 500 milisegundos.
+
+Ahora ejecutamos de nuevo la  llamada:
+
+```curl
+> curl -s http://localhost:8080/2
+{"interval":1,"httpStatus":"OK","invoiceHeader":{"id":2,"activo":"N","yearFiscal":2019,"numberInvoice":2,"customerId":2}}
+```
+
+Ahora el tiempo que ha tomado la llamada es *1* , porque realmente **Spring** no ha ejecutado el código de la función y simplemente ha devuelto el valor que tenia cacheado.
+
+Sin embargo si solicitamos el **id** 1 como hemos indicado que no lo cachee siempre ejecutara la función y por lo tanto tendremos un tiempo superior a 500 milisegundos:
+
+```
+>curl -s http://localhost:8080/1
+{"interval":503,"httpStatus":"OK","invoiceHeader":{"id":1,"activo":"S","yearFiscal":2019,"numberInvoice":1,"customerId":1}}
+>curl -s http://localhost:8080/1
+{"interval":502,"httpStatus":"OK","invoiceHeader":{"id":1,"activo":"S","yearFiscal":2019,"numberInvoice":1,"customerId":1}}
+>curl -s http://localhost:8080/1
+{"interval":503,"httpStatus":"OK","invoiceHeader":{"id":1,"activo":"S","yearFiscal":2019,"numberInvoice":1,"customerId":1}}
+```
+
+Si llamamos a la función `flushcache` limpiaremos la cache y por lo tanto la próxima llamada a la función cacheada  deberá ejecutar la función:
+
+```
+> curl -s http://localhost:8080/flushcache
+Cache Flushed!
+> curl -s http://localhost:8080/2
+{"interval":508,"httpStatus":"OK","invoiceHeader":{"id":2,"activo":"N","yearFiscal":2019,"numberInvoice":2,"customerId":2}}
+> curl -s http://localhost:8080/2
+{"interval":0,"httpStatus":"OK","invoiceHeader":{"id":2,"activo":"N","yearFiscal":2019,"numberInvoice":2,"customerId":2}}
+```
+
+Por ultimo veremos como si cambiamos el valor del campo `activo` a `N` ,  como la función que realiza el cambio esta marcada con `@CacheEvict` nos actualizara el valor de la cache, pero seguirá sin ejecutar la función `getDataCache` en la próxima llamada:
+
+```curl
+>  curl -X PUT   http://localhost:8080/   -H "Content-Type: application/json"   -d "{\"id\": 2, \"active\": \"N\"}"
+>curl -s http://localhost:8080/2
+{"interval":0,"httpStatus":"OK","invoiceHeader":{"id":2,"activo":"N","yearFiscal":2019,"numberInvoice":2,"customerId":2}}
+```
+
+### Conclusiones
+
+Spring sin ninguna dificultad nos permite cachear los resultados de las funciones, sin embargo hay que tener en cuenta que esa cache es muy básica y la realiza en memoria. Sin embargo **Spring Boot** permite usar librerías externas que nos permitirán cachear en disco, en bases de datos, etc. 
+
+En [https://docs.spring.io/spring-boot/docs/current/reference/html/boot-features-caching.html](https://docs.spring.io/spring-boot/docs/current/reference/html/boot-features-caching.html) tenéis las diferentes implementaciones de Cache que **Spring Boot**soporta, entre las que esta [EhCache](https://www.ehcache.org/) , con la cual podréis definir diferentes tipos de *backend* para los datos, así como especificar tiempos de validez para los datos y muchas más opciones.
+
+Como veis, todo un mundo para explorar.
+
